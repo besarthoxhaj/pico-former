@@ -1,6 +1,10 @@
 import torch
 
 
+is_cuda = torch.cuda.is_available()
+device = "cuda:0" if is_cuda else "cpu"
+
+
 EMBD = 256
 HEAD = 4
 DROP = 0.1
@@ -100,11 +104,11 @@ class T5(torch.nn.Module):
 
   def forward(self, src, tgt):
     src = self.tok_embd(src)
-    src = src + self.pos_embd(torch.arange(src.size(1)))
+    src = src + self.pos_embd(torch.arange(src.size(1), device=device))
     for blk in self.enc_blks: src = blk(src)
 
     tgt = self.tok_embd(tgt)
-    tgt = tgt + self.pos_embd(torch.arange(tgt.size(1)))
+    tgt = tgt + self.pos_embd(torch.arange(tgt.size(1), device=device))
     for blk in self.dec_blks: tgt = blk(src, tgt)
     tgt = self.vocab(tgt)
     return tgt
@@ -117,7 +121,7 @@ class T5(torch.nn.Module):
 
   def translate(self, src, temp=1.0, num=20):
     self.eval()
-    tgt = torch.tensor([[2]])
+    tgt = torch.tensor([[2]], device=device)
     for _ in range(num):
       with torch.no_grad():
         out = self(src, tgt)
