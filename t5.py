@@ -1,11 +1,11 @@
 import torch
 
 
-EMBD = 64
+EMBD = 256
 HEAD = 4
 DROP = 0.1
-SQNZ = 16
-VOCB = 29
+SQNZ = 512
+VOCB = 10000
 
 
 class Attention(torch.nn.Module):
@@ -16,18 +16,20 @@ class Attention(torch.nn.Module):
     self.register_buffer('mask', torch.tril(torch.ones(SQNZ, SQNZ).view(1, 1, SQNZ, SQNZ)))
 
   def forward(self, qry, key, val):
-    B, S, E = qry.shape
+    Q_B, Q_S, _ = qry.shape
+    K_B, K_S, _ = key.shape
+    V_B, V_S, _ = val.shape
     EMBD_HEAD = int(EMBD / HEAD)
 
-    qry = qry.reshape(B, S, HEAD, EMBD_HEAD).transpose(1, 2)
-    key = key.reshape(B, S, HEAD, EMBD_HEAD).transpose(1, 2)
-    val = val.reshape(B, S, HEAD, EMBD_HEAD).transpose(1, 2)
+    qry = qry.reshape(Q_B, Q_S, HEAD, EMBD_HEAD).transpose(1, 2)
+    key = key.reshape(K_B, K_S, HEAD, EMBD_HEAD).transpose(1, 2)
+    val = val.reshape(V_B, V_S, HEAD, EMBD_HEAD).transpose(1, 2)
 
-    msk = self.mask[:, :, :S, :S] == 0
+    msk = self.mask[:, :, :Q_S, :Q_S] == 0
     att = qry @ key.transpose(-1, -2) / torch.sqrt(torch.tensor(EMBD_HEAD))
     att = att if self.is_causal == False else att.masked_fill(msk, float('-inf'))
     att = torch.nn.functional.softmax(att, dim=-1)
-    out = (att @ val).transpose(1, 2).reshape(B, S, E)
+    out = (att @ val).transpose(1, 2).reshape(Q_B, Q_S, EMBD)
     return self.out_proj(out)
 
 
@@ -92,8 +94,8 @@ class T5(torch.nn.Module):
     super().__init__()
     self.tok_embd = torch.nn.Embedding(VOCB, EMBD)
     self.pos_embd = torch.nn.Embedding(SQNZ, EMBD)
-    self.enc_blks = torch.nn.ModuleList([EncoderBlock() for _ in range(2)])
-    self.dec_blks = torch.nn.ModuleList([DecoderBlock() for _ in range(2)])
+    self.enc_blks = torch.nn.ModuleList([EncoderBlock() for _ in range(4)])
+    self.dec_blks = torch.nn.ModuleList([DecoderBlock() for _ in range(4)])
     self.vocab    = torch.nn.Linear(EMBD, VOCB)
 
   def forward(self, src, tgt):
@@ -112,3 +114,17 @@ class T5(torch.nn.Module):
     emb_params = self.tok_embd.weight.numel()
     print(f"Total Parameters: {gpt_params} | Embedding: {emb_params}")
     return { 'gpt_params': gpt_params, 'emb_params': emb_params }
+
+  def translate(self, src, temp=1.0, num=20):
+    self.eval()
+    tgt = torch.tensor([[2]])
+    for _ in range(num):
+      with torch.no_grad():
+        out = self(src, tgt)
+        out = out[:, -1, :] / temp
+        prb = torch.nn.functional.softmax(out, dim=-1)
+        nxt = torch.multinomial(prb, num_samples=1)
+        if nxt.item() == 3: break
+        tgt = torch.cat((tgt, nxt), dim=1)
+    self.train()
+    return tgt

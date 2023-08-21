@@ -9,27 +9,30 @@ myT5 = t5.T5()
 myT5.num_params()
 
 
-tk = tokenizer.Tokenizer()
-ds = dataset.Dataset()
+tk = (tokenizer.LangTokenizer()).load()
+ds = dataset.LangDataset()
+dl = torch.utils.data.DataLoader(ds, batch_size=4, shuffle=True, collate_fn=ds.collate_fn)
 opt = torch.optim.SGD(myT5.parameters(), lr=0.01)
-loss_fn = torch.nn.CrossEntropyLoss()
 
 
-x_src = torch.randint(0, t5.VOCB, (2, 12))
-x_tgt = torch.randint(0, t5.VOCB, (2, 12))
+for epoch in range(5):
 
+  org = "hello world"
+  src = torch.tensor([tk.encode(org)])
+  trs = myT5.translate(src)
+  print(f"{org} - {tk.decode(trs.tolist()[0])}")
 
-for idx, epoch in enumerate(range(101)):
+  for idx, batch in enumerate(dl):
 
-  y = x_tgt.clone() # TODO: shift right
-  p = myT5(x_src, x_tgt)
+    c = batch['contx']
+    x = batch['input']
+    y = batch['label']
+    p = myT5(c, x)
 
-  p = p.reshape(-1, p.size(-1))
-  y = y.reshape(-1)
-
-  l = torch.nn.functional.cross_entropy(p, y, ignore_index=0)
-
-  if idx % 100 == 0: print(f"Loss: {l.item():.4f}")
-  l.backward()
-  opt.step()
-  opt.zero_grad()
+    p = p.view(-1, p.size(-1))
+    y = y.view(-1)
+    l = torch.nn.functional.cross_entropy(p, y, ignore_index=0)
+    if idx % 1000 == 0: print(f"Loss: {l.item():.4f}")
+    l.backward()
+    opt.step()
+    opt.zero_grad()
