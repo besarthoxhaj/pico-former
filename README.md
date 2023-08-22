@@ -11,7 +11,7 @@ $ export PATH=~/miniconda3/bin:$PATH
 $ conda init && conda config --set auto_activate_base false
 # close and start a new terminal session
 $ conda activate base
-# conda install cudatoolkit=11.0 -y
+$ conda install cudatoolkit=11.0 -y
 $ pip install torch sentencepiece pandas pipx
 $ pipx run nvitop
 ```
