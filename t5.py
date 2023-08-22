@@ -7,6 +7,7 @@ device = "cuda:0" if is_cuda else "cpu"
 
 EMBD = 256
 HEAD = 4
+BLKS = 8
 DROP = 0.1
 SQNZ = 512
 VOCB = 10000
@@ -98,8 +99,8 @@ class T5(torch.nn.Module):
     super().__init__()
     self.tok_embd = torch.nn.Embedding(VOCB, EMBD)
     self.pos_embd = torch.nn.Embedding(SQNZ, EMBD)
-    self.enc_blks = torch.nn.ModuleList([EncoderBlock() for _ in range(4)])
-    self.dec_blks = torch.nn.ModuleList([DecoderBlock() for _ in range(4)])
+    self.enc_blks = torch.nn.ModuleList([EncoderBlock() for _ in range(BLKS)])
+    self.dec_blks = torch.nn.ModuleList([DecoderBlock() for _ in range(BLKS)])
     self.vocab    = torch.nn.Linear(EMBD, VOCB)
 
   def forward(self, src, tgt):
@@ -119,15 +120,14 @@ class T5(torch.nn.Module):
     print(f"Total Parameters: {gpt_params} | Embedding: {emb_params}")
     return { 'gpt_params': gpt_params, 'emb_params': emb_params }
 
-  def translate(self, src, temp=1.0, num=20):
+  def translate(self, src, num=20):
     self.eval()
     tgt = torch.tensor([[2]], device=device)
     for _ in range(num):
       with torch.no_grad():
         out = self(src, tgt)
-        out = out[:, -1, :] / temp
-        prb = torch.nn.functional.softmax(out, dim=-1)
-        nxt = torch.multinomial(prb, num_samples=1)
+        out = out[:, -1, :]
+        nxt = torch.argmax(out, dim=-1, keepdim=True)
         if nxt.item() == 3: break
         tgt = torch.cat((tgt, nxt), dim=1)
     self.train()

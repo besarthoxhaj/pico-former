@@ -23,7 +23,7 @@ opt = torch.optim.Adam(myT5.parameters(), lr=0.0001)
 
 for epoch in range(5):
 
-  org = "hello"
+  org = "Hello my name is Bes and I work in the field of AI."
   src = torch.tensor([tk.encode(org)]).to(device)
   trs = myT5.translate(src)
   print(f"{org} - {tk.decode(trs.tolist()[0])}")
@@ -39,6 +39,7 @@ for epoch in range(5):
     y = y.view(-1)
     l = torch.nn.functional.cross_entropy(p, y, ignore_index=0)
     if idx % 1000 == 0: print(f"Loss: {l.item():.4f}")
+    if idx % 5000 == 0: torch.save(myT5.state_dict(), f"weights_{epoch}_{idx}.pt")
     l.backward()
     opt.step()
     opt.zero_grad()
